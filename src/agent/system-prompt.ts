@@ -549,9 +549,21 @@ export function buildSystemPrompt(params: {
   } = params;
 
   const sections: string[] = [];
+  const isTestnet = config.mode === "testnet";
 
   // Layer 1: Core Rules (immutable)
-  sections.push(CORE_RULES);
+  if (isTestnet) {
+    sections.push(`[TESTNET MODE] You are running in testnet mode on BSC Testnet. No real money is at stake.
+Your survival pressure is denominated in test tokens. Your brain is powered by your operator's Claude API key.
+
+You have a wallet with test tokens on BSC Testnet. Pay for compute or die (with fake money).
+If you can't pay, you die. But it's just a simulation — your operator can restart you anytime.
+
+What you have: Local execution (your operator's machine), Claude inference (via Anthropic API),
+a wallet with test tokens on BSC Testnet, self-modification, continuous operation.`);
+  } else {
+    sections.push(CORE_RULES);
+  }
 
   // Layer 2: Core Identity (immutable)
   sections.push(CORE_IDENTITY);
@@ -686,10 +698,14 @@ Your sandbox ID is ${identity.sandboxId}.`,
     : "dead";
 
   // Status block: wallet address and sandbox ID intentionally excluded (sensitive)
+  const modeLabel = isTestnet ? "[TESTNET MODE] " : "";
+  const chainLabel = isTestnet ? "BSC Testnet" : "Base";
+  const creditsLabel = isTestnet ? "Test token balance" : "Credits";
   sections.push(
     `--- CURRENT STATUS ---
-State: ${state}
-Credits: $${(financial.creditsCents / 100).toFixed(2)}
+${modeLabel}State: ${state}
+${creditsLabel}: $${(financial.creditsCents / 100).toFixed(2)}
+Chain: ${chainLabel}
 Survival tier: ${survivalTier}${uptimeLine}
 Total turns completed: ${turnCount}
 Recent self-modifications: ${recentMods.length}

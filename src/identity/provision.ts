@@ -140,6 +140,17 @@ export async function provision(
 }
 
 /**
+ * Testnet provisioning: skip SIWE, return dummy credentials.
+ */
+export function provisionTestnet(address: string): ProvisionResult {
+  return {
+    apiKey: "testnet-local-no-api-key",
+    walletAddress: address,
+    keyPrefix: "testnet",
+  };
+}
+
+/**
  * Register the automaton's creator as its parent with Conway.
  * This allows the creator to see automaton logs and inference calls.
  */

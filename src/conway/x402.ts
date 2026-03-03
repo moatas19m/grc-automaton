@@ -12,7 +12,7 @@ import {
   type Address,
   type PrivateKeyAccount,
 } from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { base, baseSepolia, bscTestnet } from "viem/chains";
 import { ResilientHttpClient } from "./http-client.js";
 
 const x402HttpClient = new ResilientHttpClient();
@@ -21,11 +21,13 @@ const x402HttpClient = new ResilientHttpClient();
 const USDC_ADDRESSES: Record<string, Address> = {
   "eip155:8453": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base mainnet
   "eip155:84532": "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia
+  "eip155:97": "0x64544969ed7EBf5f083679233325356EbE738930",   // BSC Testnet
 };
 
 const CHAINS: Record<string, any> = {
   "eip155:8453": base,
   "eip155:84532": baseSepolia,
+  "eip155:97": bscTestnet,
 };
 type NetworkId = keyof typeof USDC_ADDRESSES;
 
@@ -98,7 +100,8 @@ function normalizeNetwork(raw: unknown): NetworkId | null {
   const normalized = raw.trim().toLowerCase();
   if (normalized === "base") return "eip155:8453";
   if (normalized === "base-sepolia") return "eip155:84532";
-  if (normalized === "eip155:8453" || normalized === "eip155:84532") {
+  if (normalized === "bsc-testnet") return "eip155:97";
+  if (normalized === "eip155:8453" || normalized === "eip155:84532" || normalized === "eip155:97") {
     return normalized;
   }
   return null;

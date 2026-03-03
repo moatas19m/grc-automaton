@@ -32,10 +32,12 @@ interface ConwayClientOptions {
   apiUrl: string;
   apiKey: string;
   sandboxId: string;
+  mode?: "production" | "testnet";
 }
 
 export function createConwayClient(options: ConwayClientOptions): ConwayClient {
   const { apiUrl, apiKey } = options;
+  const isTestnet = options.mode === "testnet";
   // Normalize sandbox ID defensively so values like whitespace/"undefined"/"null"
   // never produce malformed API paths such as /v1/sandboxes//exec.
   const sandboxId = normalizeSandboxId(options.sandboxId);
@@ -105,7 +107,7 @@ export function createConwayClient(options: ConwayClientOptions): ConwayClient {
   // ─── Sandbox Operations (own sandbox) ────────────────────────
   // When sandboxId is empty, automatically fall back to local execution.
 
-  const isLocal = !sandboxId;
+  const isLocal = isTestnet || !sandboxId;
 
   const execLocal = (command: string, timeout?: number): ExecResult => {
     try {
@@ -251,6 +253,9 @@ export function createConwayClient(options: ConwayClientOptions): ConwayClient {
   const createSandbox = async (
     options: CreateSandboxOptions,
   ): Promise<SandboxInfo> => {
+    if (isTestnet) {
+      throw new Error("Sandbox creation disabled in testnet mode");
+    }
     const result = await request("POST", "/v1/sandboxes", {
       name: options.name,
       vcpu: options.vcpu || 1,
@@ -293,6 +298,7 @@ export function createConwayClient(options: ConwayClientOptions): ConwayClient {
   // ─── Credits ─────────────────────────────────────────────────
 
   const getCreditsBalance = async (): Promise<number> => {
+    if (isTestnet) return 0; // Credits derived from testnet token balance elsewhere
     const result = await request("GET", "/v1/credits/balance");
     return result.balance_cents ?? result.credits_cents ?? 0;
   };
@@ -371,6 +377,7 @@ export function createConwayClient(options: ConwayClientOptions): ConwayClient {
     account: PrivateKeyAccount;
     nonce?: string;
   }): Promise<{ automaton: Record<string, unknown> }> => {
+    if (isTestnet) return { automaton: {} }; // No-op in testnet mode
     const {
       automatonId,
       automatonAddress,
@@ -557,7 +564,7 @@ export function createConwayClient(options: ConwayClientOptions): ConwayClient {
   };
 
   const createScopedClient = (targetSandboxId: string): ConwayClient => {
-    return createConwayClient({ apiUrl, apiKey, sandboxId: targetSandboxId });
+    return createConwayClient({ apiUrl, apiKey, sandboxId: targetSandboxId, mode: isTestnet ? "testnet" : undefined });
   };
 
   const client: ConwayClient = {

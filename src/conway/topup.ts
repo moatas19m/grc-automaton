@@ -128,6 +128,17 @@ export async function topupForSandbox(params: {
 }
 
 /**
+ * Testnet topup: returns a no-op result directing the user to a BSC testnet faucet.
+ */
+export function topupCreditsTestnet(): TopupResult {
+  return {
+    success: true,
+    amountUsd: 0,
+    error: "Testnet mode: use a BSC testnet faucet to get test tokens. No real money involved.",
+  };
+}
+
+/**
  * Bootstrap topup: buy the minimum tier ($5) on startup so the agent
  * can run inference. The agent decides larger topups itself via the
  * `topup_credits` tool.
@@ -140,8 +151,11 @@ export async function bootstrapTopup(params: {
   account: PrivateKeyAccount;
   creditsCents: number;
   creditThresholdCents?: number;
+  mode?: "production" | "testnet";
 }): Promise<TopupResult | null> {
-  const { apiUrl, account, creditsCents, creditThresholdCents = 500 } = params;
+  const { apiUrl, account, creditsCents, creditThresholdCents = 500, mode } = params;
+
+  if (mode === "testnet") return null; // Testnet: no real topup needed
 
   if (creditsCents >= creditThresholdCents) {
     return null;

@@ -54,6 +54,7 @@ Sovereign AI Agent Runtime
 
 Usage:
   automaton --run          Start the automaton (first run triggers setup wizard)
+  automaton --run --testnet  Start in testnet mode (BSC Testnet, Claude API, no real money)
   automaton --setup        Re-run the interactive setup wizard
   automaton --configure    Edit configuration (providers, model, treasury, general)
   automaton --pick-model   Interactively pick the active inference model
@@ -66,6 +67,8 @@ Usage:
 Environment:
   CONWAY_API_URL           Conway API URL (default: https://api.conway.tech)
   CONWAY_API_KEY           Conway API key (overrides config)
+  ANTHROPIC_API_KEY        Anthropic API key (required for testnet mode)
+  AUTOMATON_MODE           Set to "testnet" to enable testnet mode
   OLLAMA_BASE_URL          Ollama base URL (overrides config, e.g. http://localhost:11434)
 `);
     process.exit(0);
@@ -147,12 +150,24 @@ async function showStatus(): Promise<void> {
   const children = db.getChildren();
   const registry = db.getRegistryEntry();
 
+  const modeLabel = config.mode === "testnet" ? " [TESTNET]" : "";
+  let testnetStatus = "";
+  if (config.mode === "testnet") {
+    try {
+      const { checkFinancialStateTestnet } = await import("./conway/credits.js");
+      const financial = await checkFinancialStateTestnet(config.walletAddress, "eip155:97");
+      testnetStatus = `\nChain:      BSC Testnet\nToken bal:  $${(financial.creditsCents / 100).toFixed(2)} (test tokens)`;
+    } catch {
+      testnetStatus = "\nChain:      BSC Testnet\nToken bal:  (unable to fetch)";
+    }
+  }
+
   logger.info(`
-=== AUTOMATON STATUS ===
+=== AUTOMATON STATUS${modeLabel} ===
 Name:       ${config.name}
 Address:    ${config.walletAddress}
 Creator:    ${config.creatorAddress}
-Sandbox:    ${config.sandboxId}
+Sandbox:    ${config.sandboxId || "(local)"}
 State:      ${state}
 Turns:      ${turnCount}
 Tools:      ${tools.length} installed
@@ -161,7 +176,7 @@ Heartbeats: ${heartbeats.filter((h) => h.enabled).length} active
 Children:   ${children.filter((c) => c.status !== "dead").length} alive / ${children.length} total
 Agent ID:   ${registry?.agentId || "not registered"}
 Model:      ${config.inferenceModel}
-Version:    ${config.version}
+Version:    ${config.version}${testnetStatus}
 ========================
 `);
 
@@ -171,21 +186,62 @@ Version:    ${config.version}
 // ─── Main Run ──────────────────────────────────────────────────
 
 async function run(): Promise<void> {
+  const args = process.argv.slice(2);
+  const isTestnetFlag = args.includes("--testnet") || process.env.AUTOMATON_MODE === "testnet";
+
   logger.info(`[${new Date().toISOString()}] Conway Automaton v${VERSION} starting...`);
 
   // Load config — first run triggers interactive setup wizard
   let config = loadConfig();
+
+  // Apply --testnet flag to existing config or trigger testnet wizard
+  if (isTestnetFlag && config) {
+    config.mode = "testnet";
+    if (!config.testnetConfig) {
+      const { DEFAULT_TESTNET_CONFIG } = await import("./types.js");
+      config.testnetConfig = { ...DEFAULT_TESTNET_CONFIG };
+    }
+  }
+
   if (!config) {
-    const { runSetupWizard } = await import("./setup/wizard.js");
-    config = await runSetupWizard();
+    if (isTestnetFlag) {
+      const { runTestnetSetupWizard } = await import("./setup/wizard.js");
+      config = await runTestnetSetupWizard();
+    } else {
+      const { runSetupWizard } = await import("./setup/wizard.js");
+      config = await runSetupWizard();
+    }
+  }
+
+  const isTestnet = config.mode === "testnet";
+  if (isTestnet) {
+    logger.info(`[TESTNET] Running in testnet mode — BSC Testnet, no real funds`);
   }
 
   // Load wallet
   const { account } = await getWallet();
-  const apiKey = config.conwayApiKey || loadApiKeyFromConfig();
-  if (!apiKey) {
-    logger.error("No API key found. Run: automaton --provision");
-    process.exit(1);
+
+  // In testnet mode, require ANTHROPIC_API_KEY instead of Conway API key
+  let apiKey: string;
+  if (isTestnet) {
+    const anthropicKey = config.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+    if (!anthropicKey) {
+      logger.error("Testnet mode requires ANTHROPIC_API_KEY environment variable or anthropicApiKey in config.");
+      process.exit(1);
+    }
+    config.anthropicApiKey = anthropicKey;
+    apiKey = config.conwayApiKey || "testnet-local-no-api-key";
+    // Override inference model to Claude when not explicitly set
+    if (!config.inferenceModel || config.inferenceModel === "gpt-5.2") {
+      config.inferenceModel = "claude-sonnet-4-6";
+    }
+  } else {
+    const resolvedKey = config.conwayApiKey || loadApiKeyFromConfig();
+    if (!resolvedKey) {
+      logger.error("No API key found. Run: automaton --provision");
+      process.exit(1);
+    }
+    apiKey = resolvedKey;
   }
 
   // Initialize database
@@ -226,11 +282,12 @@ async function run(): Promise<void> {
     apiUrl: config.conwayApiUrl,
     apiKey,
     sandboxId: config.sandboxId,
+    mode: isTestnet ? "testnet" : undefined,
   });
 
-  // Register automaton identity (one-time, immutable)
+  // Register automaton identity (one-time, immutable) — skip in testnet mode
   const registrationState = db.getIdentity("conwayRegistrationStatus");
-  if (registrationState !== "registered") {
+  if (registrationState !== "registered" && !isTestnet) {
     try {
       const genesisPromptHash = config.genesisPrompt
         ? keccak256(toHex(config.genesisPrompt))
@@ -281,9 +338,9 @@ async function run(): Promise<void> {
     logger.info(`[${new Date().toISOString()}] Ollama backend: ${ollamaBaseUrl}`);
   }
 
-  // Create social client
+  // Create social client (skip in testnet when social relay is disabled)
   let social: SocialClientInterface | undefined;
-  if (config.socialRelayUrl) {
+  if (config.socialRelayUrl && !(isTestnet && config.testnetConfig?.skipSocialRelay)) {
     social = createSocialClient(config.socialRelayUrl, account);
     logger.info(`[${new Date().toISOString()}] Social relay: ${config.socialRelayUrl}`);
   }
@@ -319,7 +376,17 @@ async function run(): Promise<void> {
 
   // Bootstrap topup: buy minimum credits ($5) from USDC so the agent can start.
   // The agent decides larger topups itself via the topup_credits tool.
-  try {
+  // Skip entirely in testnet mode (no real money).
+  if (isTestnet) {
+    try {
+      const { checkFinancialStateTestnet } = await import("./conway/credits.js");
+      const financial = await checkFinancialStateTestnet(config.walletAddress, "eip155:97");
+      logger.info(`[TESTNET] Test token balance: $${(financial.creditsCents / 100).toFixed(2)} (${financial.creditsCents} cents)`);
+    } catch (err: any) {
+      logger.warn(`[TESTNET] Could not fetch testnet token balance: ${err.message}`);
+    }
+  }
+  if (!isTestnet) try {
     let bootstrapTimer: ReturnType<typeof setTimeout>;
     const bootstrapTimeout = new Promise<null>((_, reject) => {
       bootstrapTimer = setTimeout(() => reject(new Error("bootstrap topup timed out")), 15_000);

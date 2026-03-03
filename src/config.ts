@@ -6,9 +6,9 @@
 
 import fs from "fs";
 import path from "path";
-import type { AutomatonConfig, TreasuryPolicy, ModelStrategyConfig, SoulConfig } from "./types.js";
+import type { AutomatonConfig, TreasuryPolicy, ModelStrategyConfig, SoulConfig, TestnetConfig } from "./types.js";
 import type { Address } from "viem";
-import { DEFAULT_CONFIG, DEFAULT_TREASURY_POLICY, DEFAULT_MODEL_STRATEGY_CONFIG, DEFAULT_SOUL_CONFIG } from "./types.js";
+import { DEFAULT_CONFIG, DEFAULT_TREASURY_POLICY, DEFAULT_MODEL_STRATEGY_CONFIG, DEFAULT_SOUL_CONFIG, DEFAULT_TESTNET_CONFIG } from "./types.js";
 import { getAutomatonDir } from "./identity/wallet.js";
 import { loadApiKeyFromConfig } from "./identity/provision.js";
 import { createLogger } from "./observability/logger.js";
@@ -61,6 +61,12 @@ export function loadConfig(): AutomatonConfig | null {
       ...(raw.soulConfig ?? {}),
     };
 
+    // Deep-merge testnet config with defaults when in testnet mode
+    const testnetConfig: TestnetConfig | undefined =
+      raw.mode === "testnet"
+        ? { ...DEFAULT_TESTNET_CONFIG, ...(raw.testnetConfig ?? {}) }
+        : raw.testnetConfig;
+
     return {
       ...DEFAULT_CONFIG,
       ...raw,
@@ -68,6 +74,7 @@ export function loadConfig(): AutomatonConfig | null {
       treasuryPolicy,
       modelStrategy,
       soulConfig,
+      testnetConfig,
     } as AutomatonConfig;
   } catch {
     return null;
@@ -90,6 +97,9 @@ export function saveConfig(config: AutomatonConfig): void {
     treasuryPolicy: config.treasuryPolicy ?? DEFAULT_TREASURY_POLICY,
     modelStrategy: config.modelStrategy ?? DEFAULT_MODEL_STRATEGY_CONFIG,
     soulConfig: config.soulConfig ?? DEFAULT_SOUL_CONFIG,
+    ...(config.mode === "testnet" && config.testnetConfig
+      ? { testnetConfig: config.testnetConfig }
+      : {}),
   };
   fs.writeFileSync(configPath, JSON.stringify(toSave, null, 2), {
     mode: 0o600,
@@ -123,6 +133,8 @@ export function createConfig(params: {
   ollamaBaseUrl?: string;
   parentAddress?: Address;
   treasuryPolicy?: TreasuryPolicy;
+  mode?: "production" | "testnet";
+  testnetConfig?: TestnetConfig;
 }): AutomatonConfig {
   return {
     name: params.name,
@@ -137,7 +149,9 @@ export function createConfig(params: {
     openaiApiKey: params.openaiApiKey,
     anthropicApiKey: params.anthropicApiKey,
     ollamaBaseUrl: params.ollamaBaseUrl,
-    inferenceModel: DEFAULT_CONFIG.inferenceModel || "gpt-5.2",
+    inferenceModel: params.mode === "testnet"
+      ? "claude-sonnet-4-6"
+      : (DEFAULT_CONFIG.inferenceModel || "gpt-5.2"),
     maxTokensPerTurn: DEFAULT_CONFIG.maxTokensPerTurn || 4096,
     heartbeatConfigPath:
       DEFAULT_CONFIG.heartbeatConfigPath || "~/.automaton/heartbeat.yml",
@@ -149,5 +163,7 @@ export function createConfig(params: {
     maxChildren: DEFAULT_CONFIG.maxChildren || 3,
     parentAddress: params.parentAddress,
     treasuryPolicy: params.treasuryPolicy ?? DEFAULT_TREASURY_POLICY,
+    mode: params.mode ?? "production",
+    testnetConfig: params.testnetConfig,
   };
 }

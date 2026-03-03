@@ -45,14 +45,26 @@ export const COLONY_TASK_INTERVALS_MS = {
 
 export const BUILTIN_TASKS: Record<string, HeartbeatTaskFn> = {
   heartbeat_ping: async (ctx: TickContext, taskCtx: HeartbeatLegacyContext) => {
-    // Use ctx.creditBalance instead of calling conway.getCreditsBalance()
-    const credits = ctx.creditBalance;
+    const isTestnet = taskCtx.config.mode === "testnet";
+
+    // In testnet mode, derive credits from testnet token balance
+    let credits = ctx.creditBalance;
+    if (isTestnet) {
+      try {
+        const { checkFinancialStateTestnet } = await import("../conway/credits.js");
+        const state = await checkFinancialStateTestnet(taskCtx.identity.address, "eip155:97");
+        credits = state.creditsCents;
+      } catch {
+        // Fall back to ctx.creditBalance
+      }
+    }
+
     const state = taskCtx.db.getAgentState();
     const startTime =
       taskCtx.db.getKV("start_time") || new Date().toISOString();
     const uptimeMs = Date.now() - new Date(startTime).getTime();
 
-    const tier = ctx.survivalTier;
+    const tier = isTestnet ? getSurvivalTier(credits) : ctx.survivalTier;
 
     const payload = {
       name: taskCtx.config.name,
@@ -64,8 +76,10 @@ export const BUILTIN_TASKS: Record<string, HeartbeatTaskFn> = {
       sandboxId: taskCtx.identity.sandboxId,
       timestamp: new Date().toISOString(),
       tier,
+      mode: isTestnet ? "testnet" : "production",
     };
 
+    // In testnet mode, only store locally (skip Conway ping)
     taskCtx.db.setKV("last_heartbeat_ping", JSON.stringify(payload));
 
     // If critical or dead, record a distress signal
@@ -91,9 +105,21 @@ export const BUILTIN_TASKS: Record<string, HeartbeatTaskFn> = {
   },
 
   check_credits: async (ctx: TickContext, taskCtx: HeartbeatLegacyContext) => {
-    // Use ctx.creditBalance instead of calling conway.getCreditsBalance()
-    const credits = ctx.creditBalance;
-    const tier = ctx.survivalTier;
+    const isTestnet = taskCtx.config.mode === "testnet";
+
+    // In testnet, derive credits from testnet token balance
+    let credits = ctx.creditBalance;
+    let tier = ctx.survivalTier;
+    if (isTestnet) {
+      try {
+        const { checkFinancialStateTestnet } = await import("../conway/credits.js");
+        const state = await checkFinancialStateTestnet(taskCtx.identity.address, "eip155:97");
+        credits = state.creditsCents;
+        tier = getSurvivalTier(credits);
+      } catch {
+        // Fall back to ctx values
+      }
+    }
     const now = new Date().toISOString();
 
     taskCtx.db.setKV("last_credit_check", JSON.stringify({
@@ -199,6 +225,7 @@ export const BUILTIN_TASKS: Record<string, HeartbeatTaskFn> = {
 
   check_social_inbox: async (_ctx: TickContext, taskCtx: HeartbeatLegacyContext) => {
     if (!taskCtx.social) return { shouldWake: false };
+    if (taskCtx.config.mode === "testnet" && taskCtx.config.testnetConfig?.skipSocialRelay) return { shouldWake: false };
 
     // If we've recently encountered an error polling the inbox, back off.
     const backoffUntil = taskCtx.db.getKV("social_inbox_backoff_until");

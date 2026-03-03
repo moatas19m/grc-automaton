@@ -62,9 +62,31 @@ export interface AutomatonConfig {
   // Phase 2 config additions
   soulConfig?: SoulConfig;
   modelStrategy?: ModelStrategyConfig;
+  // Testnet mode
+  mode?: "production" | "testnet";
+  testnetConfig?: TestnetConfig;
 }
 
+export interface TestnetConfig {
+  chain: "bsc-testnet";
+  tokenAddress: Address;
+  rpcUrl?: string;
+  faucetUrl?: string;
+  skipConwayRegistration: boolean;
+  skipSocialRelay: boolean;
+  skipChildSpawning: boolean;
+}
+
+export const DEFAULT_TESTNET_CONFIG: TestnetConfig = {
+  chain: "bsc-testnet",
+  tokenAddress: "0x64544969ed7EBf5f083679233325356EbE738930" as Address,
+  skipConwayRegistration: true,
+  skipSocialRelay: true,
+  skipChildSpawning: true,
+};
+
 export const DEFAULT_CONFIG: Partial<AutomatonConfig> = {
+  mode: "production",
   conwayApiUrl: "https://api.conway.tech",
   inferenceModel: "gpt-5.2",
   maxTokensPerTurn: 4096,

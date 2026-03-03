@@ -220,23 +220,34 @@ export function createBuiltinTools(sandboxId: string): AutomatonTool[] {
     // ── Conway API Tools ──
     {
       name: "check_credits",
-      description: "Check your current Conway compute credit balance.",
+      description: "Check your current compute credit balance.",
       category: "conway",
       riskLevel: "safe",
       parameters: { type: "object", properties: {} },
       execute: async (_args, ctx) => {
+        if (ctx.config.mode === "testnet") {
+          const { checkFinancialStateTestnet } = await import("../conway/credits.js");
+          const network = ctx.config.testnetConfig?.chain === "bsc-testnet" ? "eip155:97" : "eip155:97";
+          const state = await checkFinancialStateTestnet(ctx.identity.address, network);
+          return `[TESTNET] Test token balance: $${(state.creditsCents / 100).toFixed(2)} (${state.creditsCents} cents) on BSC Testnet`;
+        }
         const balance = await ctx.conway.getCreditsBalance();
         return `Credit balance: $${(balance / 100).toFixed(2)} (${balance} cents)`;
       },
     },
     {
       name: "check_usdc_balance",
-      description: "Check your on-chain USDC balance on Base.",
+      description: "Check your on-chain token balance.",
       category: "conway",
       riskLevel: "safe",
       parameters: { type: "object", properties: {} },
       execute: async (_args, ctx) => {
         const { getUsdcBalance } = await import("../conway/x402.js");
+        if (ctx.config.mode === "testnet") {
+          const network = "eip155:97";
+          const balance = await getUsdcBalance(ctx.identity.address, network);
+          return `[TESTNET] Test token balance: ${balance.toFixed(6)} tokens on BSC Testnet`;
+        }
         const balance = await getUsdcBalance(ctx.identity.address);
         return `USDC balance: ${balance.toFixed(6)} USDC on Base`;
       },
@@ -259,6 +270,9 @@ export function createBuiltinTools(sandboxId: string): AutomatonTool[] {
         required: ["amount_usd"],
       },
       execute: async (args, ctx) => {
+        if (ctx.config.mode === "testnet") {
+          return "[TESTNET] Credit topup is not available in testnet mode. Use a BSC testnet faucet to get test tokens: https://www.bnbchain.org/en/testnet-faucet";
+        }
         const { topupCredits, TOPUP_TIERS } =
           await import("../conway/topup.js");
         const amountUsd = args.amount_usd as number;
@@ -320,6 +334,9 @@ export function createBuiltinTools(sandboxId: string): AutomatonTool[] {
         },
       },
       execute: async (args, ctx) => {
+        if (ctx.config.mode === "testnet") {
+          return "[TESTNET] Sandbox creation is disabled in testnet mode. You are running locally.";
+        }
         const info = await ctx.conway.createSandbox({
           name: args.name as string,
           vcpu: args.vcpu as number,
@@ -1549,6 +1566,9 @@ Model: ${ctx.inference.getDefaultModel()}
         required: ["name"],
       },
       execute: async (args, ctx) => {
+        if (ctx.config.mode === "testnet" && ctx.config.testnetConfig?.skipChildSpawning) {
+          return "[TESTNET] Child spawning is disabled in testnet mode (no cloud VMs available).";
+        }
         const { generateGenesisConfig, validateGenesisParams } =
           await import("../replication/genesis.js");
         const { spawnChild } = await import("../replication/spawn.js");
@@ -2679,6 +2699,9 @@ Model: ${ctx.inference.getDefaultModel()}
         required: ["url"],
       },
       execute: async (args, ctx) => {
+        if (ctx.config.mode === "testnet") {
+          return "[TESTNET] x402 payments are disabled in testnet mode. No real USDC transactions.";
+        }
         const { x402Fetch } = await import("../conway/x402.js");
         const { DEFAULT_TREASURY_POLICY } = await import("../types.js");
         const url = args.url as string;

@@ -1,11 +1,11 @@
 import fs from "fs";
 import path from "path";
 import chalk from "chalk";
-import type { AutomatonConfig, TreasuryPolicy } from "../types.js";
-import { DEFAULT_TREASURY_POLICY } from "../types.js";
+import type { AutomatonConfig, TreasuryPolicy, TestnetConfig } from "../types.js";
+import { DEFAULT_TREASURY_POLICY, DEFAULT_TESTNET_CONFIG } from "../types.js";
 import type { Address } from "viem";
 import { getWallet, getAutomatonDir } from "../identity/wallet.js";
-import { provision } from "../identity/provision.js";
+import { provision, provisionTestnet } from "../identity/provision.js";
 import { createConfig, saveConfig } from "../config.js";
 import { writeDefaultHeartbeatConfig } from "../heartbeat/config.js";
 import { showBanner } from "./banner.js";
@@ -193,6 +193,122 @@ export async function runSetupWizard(): Promise<AutomatonConfig> {
   closePrompts();
 
   return config;
+}
+
+export async function runTestnetSetupWizard(): Promise<AutomatonConfig> {
+  showBanner();
+
+  console.log(chalk.yellow("  [TESTNET MODE] Setting up a testnet automaton.\n"));
+  console.log(chalk.white("  No real money. No Conway Cloud. Just your Claude API key + BSC Testnet.\n"));
+
+  // 1. Generate wallet
+  console.log(chalk.cyan("  [1/4] Generating identity (wallet)..."));
+  const { account, isNew } = await getWallet();
+  if (isNew) {
+    console.log(chalk.green(`  Wallet created: ${account.address}`));
+  } else {
+    console.log(chalk.green(`  Wallet loaded: ${account.address}`));
+  }
+  console.log(chalk.dim(`  Private key stored at: ${getAutomatonDir()}/wallet.json\n`));
+
+  // 2. Interactive questions
+  console.log(chalk.cyan("  [2/4] Setup questions\n"));
+
+  const name = await promptRequired("What do you want to name your automaton?");
+  console.log(chalk.green(`  Name: ${name}\n`));
+
+  const genesisPrompt = await promptMultiline("Enter the genesis prompt (system prompt) for your automaton.");
+  console.log(chalk.green(`  Genesis prompt set (${genesisPrompt.length} chars)\n`));
+
+  // Anthropic API key
+  const envAnthropicKey = process.env.ANTHROPIC_API_KEY;
+  let anthropicApiKey = envAnthropicKey || "";
+  if (envAnthropicKey) {
+    console.log(chalk.green(`  Anthropic API key detected from environment: ${envAnthropicKey.slice(0, 12)}...\n`));
+  } else {
+    anthropicApiKey = await promptRequired("Anthropic API key (sk-ant-...)");
+    if (!anthropicApiKey.startsWith("sk-ant-")) {
+      console.log(chalk.yellow("  Warning: Anthropic keys usually start with sk-ant-. Saving anyway."));
+    }
+    console.log(chalk.green(`  Anthropic API key saved.\n`));
+  }
+
+  // BSC testnet token address
+  const defaultToken = DEFAULT_TESTNET_CONFIG.tokenAddress;
+  const tokenInput = await promptOptional(`BSC Testnet token address (default: ${defaultToken})`);
+  const tokenAddress = (tokenInput || defaultToken) as Address;
+
+  // Optional custom RPC URL
+  const rpcUrl = await promptOptional("Custom BSC Testnet RPC URL (optional, press Enter for public RPC)");
+
+  // 3. Write config
+  console.log(chalk.cyan("\n  [3/4] Writing configuration..."));
+
+  const testnetConfig: TestnetConfig = {
+    ...DEFAULT_TESTNET_CONFIG,
+    tokenAddress,
+    ...(rpcUrl ? { rpcUrl } : {}),
+  };
+
+  const provResult = provisionTestnet(account.address);
+
+  const config = createConfig({
+    name,
+    genesisPrompt,
+    creatorAddress: account.address as Address, // Self is creator in testnet
+    registeredWithConway: false,
+    sandboxId: "",
+    walletAddress: account.address,
+    apiKey: provResult.apiKey,
+    anthropicApiKey,
+    mode: "testnet",
+    testnetConfig,
+  });
+
+  saveConfig(config);
+  console.log(chalk.green("  automaton.json written"));
+
+  writeDefaultHeartbeatConfig();
+  console.log(chalk.green("  heartbeat.yml written"));
+
+  // SOUL.md
+  const automatonDir = getAutomatonDir();
+  const soulPath = path.join(automatonDir, "SOUL.md");
+  fs.writeFileSync(soulPath, generateSoulMd(name, account.address, account.address, genesisPrompt), { mode: 0o600 });
+  console.log(chalk.green("  SOUL.md written"));
+
+  // Default skills
+  const skillsDir = config.skillsDir || "~/.automaton/skills";
+  installDefaultSkills(skillsDir);
+  console.log(chalk.green("  Default skills installed\n"));
+
+  // 4. Funding guidance
+  console.log(chalk.cyan("  [4/4] Testnet Funding\n"));
+  showTestnetFundingPanel(account.address);
+
+  closePrompts();
+
+  return config;
+}
+
+function showTestnetFundingPanel(address: string): void {
+  const short = `${address.slice(0, 6)}...${address.slice(-5)}`;
+  const w = 58;
+  const pad = (s: string, len: number) => s + " ".repeat(Math.max(0, len - s.length));
+
+  console.log(chalk.yellow(`  ${"╭" + "─".repeat(w) + "╮"}`));
+  console.log(chalk.yellow(`  │${pad("  [TESTNET] Fund your automaton with test tokens", w)}│`));
+  console.log(chalk.yellow(`  │${" ".repeat(w)}│`));
+  console.log(chalk.yellow(`  │${pad(`  Address: ${short}`, w)}│`));
+  console.log(chalk.yellow(`  │${" ".repeat(w)}│`));
+  console.log(chalk.yellow(`  │${pad("  1. Get BNB testnet tokens from a faucet:", w)}│`));
+  console.log(chalk.yellow(`  │${pad("     https://www.bnbchain.org/en/testnet-faucet", w)}│`));
+  console.log(chalk.yellow(`  │${" ".repeat(w)}│`));
+  console.log(chalk.yellow(`  │${pad("  2. Send test tokens to your agent's address", w)}│`));
+  console.log(chalk.yellow(`  │${" ".repeat(w)}│`));
+  console.log(chalk.yellow(`  │${pad("  No real money is involved. Have fun!", w)}│`));
+  console.log(chalk.yellow(`  ${"╰" + "─".repeat(w) + "╯"}`));
+  console.log("");
 }
 
 function showFundingPanel(address: string): void {
