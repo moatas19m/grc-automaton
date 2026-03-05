@@ -156,7 +156,7 @@ async function showStatus(): Promise<void> {
     try {
       const { checkFinancialStateTestnet } = await import("./conway/credits.js");
       const financial = await checkFinancialStateTestnet(config.walletAddress, "eip155:97");
-      testnetStatus = `\nChain:      BSC Testnet\nToken bal:  $${(financial.creditsCents / 100).toFixed(2)} (test tokens)`;
+      testnetStatus = `\nChain:      BSC Testnet\ntBNB bal:   ${financial.usdcBalance.toFixed(4)} tBNB (${financial.creditsCents} credit cents)`;
     } catch {
       testnetStatus = "\nChain:      BSC Testnet\nToken bal:  (unable to fetch)";
     }
@@ -376,9 +376,9 @@ async function run(): Promise<void> {
     try {
       const { checkFinancialStateTestnet } = await import("./conway/credits.js");
       const financial = await checkFinancialStateTestnet(config.walletAddress, "eip155:97");
-      logger.info(`[TESTNET] Test token balance: $${(financial.creditsCents / 100).toFixed(2)} (${financial.creditsCents} cents)`);
+      logger.info(`[TESTNET] Test BNB balance: ${financial.usdcBalance.toFixed(4)} tBNB (${financial.creditsCents} credit cents)`);
     } catch (err: any) {
-      logger.warn(`[TESTNET] Could not fetch testnet token balance: ${err.message}`);
+      logger.warn(`[TESTNET] Could not fetch test BNB balance: ${err.message}`);
     }
   }
   if (!isTestnet) try {

@@ -69,7 +69,6 @@ export interface AutomatonConfig {
 
 export interface TestnetConfig {
   chain: "bsc-testnet";
-  tokenAddress: Address;
   rpcUrl?: string;
   faucetUrl?: string;
   skipConwayRegistration: boolean;
@@ -79,7 +78,6 @@ export interface TestnetConfig {
 
 export const DEFAULT_TESTNET_CONFIG: TestnetConfig = {
   chain: "bsc-testnet",
-  tokenAddress: "0x64544969ed7EBf5f083679233325356EbE738930" as Address,
   skipConwayRegistration: true,
   skipSocialRelay: true,
   skipChildSpawning: true,

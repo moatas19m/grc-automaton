@@ -198,6 +198,28 @@ export async function getUsdcBalance(
 }
 
 /**
+ * Get the native token balance (e.g. BNB on BSC Testnet) in whole units.
+ */
+export async function getNativeBalance(
+  address: Address,
+  network: string = "eip155:97",
+): Promise<number> {
+  const chain = CHAINS[network];
+  if (!chain) {
+    throw new Error(`Unsupported network for native balance: ${network}`);
+  }
+
+  const client = createPublicClient({
+    chain,
+    transport: http(undefined, { timeout: 10_000 }),
+  });
+
+  const balance = await client.getBalance({ address });
+  // Native tokens have 18 decimals
+  return Number(balance) / 1e18;
+}
+
+/**
  * Get the USDC balance and read status details for diagnostics.
  */
 export async function getUsdcBalanceDetailed(

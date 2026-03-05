@@ -12,7 +12,7 @@ import type {
 } from "../types.js";
 import type { Address } from "viem";
 import { SURVIVAL_THRESHOLDS } from "../types.js";
-import { getUsdcBalance } from "./x402.js";
+import { getUsdcBalance, getNativeBalance } from "./x402.js";
 
 /**
  * Check the current financial state of the automaton.
@@ -47,19 +47,20 @@ export function getSurvivalTier(creditsCents: number): SurvivalTier {
 
 /**
  * Check financial state in testnet mode.
- * Credits are derived from testnet token balance (no Conway API call).
+ * Credits are derived from native BNB balance on BSC Testnet (no Conway API call).
+ * 1 tBNB = $1 = 100 cents for testnet credit purposes.
  */
 export async function checkFinancialStateTestnet(
   walletAddress: Address,
   network: string = "eip155:97",
 ): Promise<FinancialState> {
-  const tokenBalance = await getUsdcBalance(walletAddress, network);
-  // Convert token balance to creditsCents (1 token = $1 = 100 cents)
-  const creditsCents = Math.floor(tokenBalance * 100);
+  const nativeBalance = await getNativeBalance(walletAddress, network);
+  // Convert native balance to creditsCents (1 tBNB = $1 = 100 cents for testnet)
+  const creditsCents = Math.floor(nativeBalance * 100);
 
   return {
     creditsCents,
-    usdcBalance: tokenBalance,
+    usdcBalance: nativeBalance,
     lastChecked: new Date().toISOString(),
   };
 }

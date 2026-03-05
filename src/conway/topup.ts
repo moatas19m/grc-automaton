@@ -134,7 +134,7 @@ export function topupCreditsTestnet(): TopupResult {
   return {
     success: true,
     amountUsd: 0,
-    error: "Testnet mode: use a BSC testnet faucet to get test tokens. No real money involved.",
+    error: "Testnet mode: use a BSC testnet faucet to get test BNB. No real money involved.",
   };
 }
 

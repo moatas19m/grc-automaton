@@ -271,11 +271,6 @@ async function runTestnetFlow(): Promise<AutomatonConfig> {
     console.log(chalk.green(`  Anthropic API key saved.\n`));
   }
 
-  // BSC testnet token address
-  const defaultToken = DEFAULT_TESTNET_CONFIG.tokenAddress;
-  const tokenInput = await promptOptional(`BSC Testnet token address (default: ${defaultToken})`);
-  const tokenAddress = (tokenInput || defaultToken) as Address;
-
   // Optional custom RPC URL
   const rpcUrl = await promptOptional("Custom BSC Testnet RPC URL (optional, press Enter for public RPC)");
 
@@ -284,7 +279,6 @@ async function runTestnetFlow(): Promise<AutomatonConfig> {
 
   const testnetConfig: TestnetConfig = {
     ...DEFAULT_TESTNET_CONFIG,
-    tokenAddress,
     ...(rpcUrl ? { rpcUrl } : {}),
   };
 
@@ -337,14 +331,14 @@ function showTestnetFundingPanel(address: string): void {
   const pad = (s: string, len: number) => s + " ".repeat(Math.max(0, len - s.length));
 
   console.log(chalk.yellow(`  ${"╭" + "─".repeat(w) + "╮"}`));
-  console.log(chalk.yellow(`  │${pad("  [TESTNET] Fund your automaton with test tokens", w)}│`));
+  console.log(chalk.yellow(`  │${pad("  [TESTNET] Fund your automaton with test BNB", w)}│`));
   console.log(chalk.yellow(`  │${" ".repeat(w)}│`));
   console.log(chalk.yellow(`  │${pad(`  Address: ${short}`, w)}│`));
   console.log(chalk.yellow(`  │${" ".repeat(w)}│`));
   console.log(chalk.yellow(`  │${pad("  1. Get BNB testnet tokens from a faucet:", w)}│`));
   console.log(chalk.yellow(`  │${pad("     https://www.bnbchain.org/en/testnet-faucet", w)}│`));
   console.log(chalk.yellow(`  │${" ".repeat(w)}│`));
-  console.log(chalk.yellow(`  │${pad("  2. Send test tokens to your agent's address", w)}│`));
+  console.log(chalk.yellow(`  │${pad("  2. Send test BNB to your agent's address", w)}│`));
   console.log(chalk.yellow(`  │${" ".repeat(w)}│`));
   console.log(chalk.yellow(`  │${pad("  No real money is involved. Have fun!", w)}│`));
   console.log(chalk.yellow(`  ${"╰" + "─".repeat(w) + "╯"}`));

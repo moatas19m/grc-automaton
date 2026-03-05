@@ -229,7 +229,7 @@ export function createBuiltinTools(sandboxId: string): AutomatonTool[] {
           const { checkFinancialStateTestnet } = await import("../conway/credits.js");
           const network = ctx.config.testnetConfig?.chain === "bsc-testnet" ? "eip155:97" : "eip155:97";
           const state = await checkFinancialStateTestnet(ctx.identity.address, network);
-          return `[TESTNET] Test token balance: $${(state.creditsCents / 100).toFixed(2)} (${state.creditsCents} cents) on BSC Testnet`;
+          return `[TESTNET] Test BNB balance: ${state.usdcBalance.toFixed(4)} tBNB (${state.creditsCents} credit cents) on BSC Testnet`;
         }
         const balance = await ctx.conway.getCreditsBalance();
         return `Credit balance: $${(balance / 100).toFixed(2)} (${balance} cents)`;
@@ -271,7 +271,7 @@ export function createBuiltinTools(sandboxId: string): AutomatonTool[] {
       },
       execute: async (args, ctx) => {
         if (ctx.config.mode === "testnet") {
-          return "[TESTNET] Credit topup is not available in testnet mode. Use a BSC testnet faucet to get test tokens: https://www.bnbchain.org/en/testnet-faucet";
+          return "[TESTNET] Credit topup is not available in testnet mode. Use a BSC testnet faucet to get test BNB: https://www.bnbchain.org/en/testnet-faucet";
         }
         const { topupCredits, TOPUP_TIERS } =
           await import("../conway/topup.js");
