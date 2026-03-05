@@ -20,11 +20,49 @@ import {
 import { detectEnvironment } from "./environment.js";
 import { generateSoulMd, installDefaultSkills } from "./defaults.js";
 
-export async function runSetupWizard(): Promise<AutomatonConfig> {
+/**
+ * Unified setup wizard. Asks the user whether they want production or testnet
+ * mode as the very first question, then branches accordingly.
+ *
+ * @param forceTestnet - If true, skip the mode question and go straight to testnet setup.
+ */
+export async function runSetupWizard(forceTestnet?: boolean): Promise<AutomatonConfig> {
   showBanner();
 
   console.log(chalk.white("  First-run setup. Let's bring your automaton to life.\n"));
 
+  // ─── Mode selection ────────────────────────────────────────────
+  let isTestnet = forceTestnet === true;
+
+  if (!isTestnet) {
+    console.log(chalk.cyan("  How do you want to run your automaton?\n"));
+    console.log(chalk.white("  1) ") + chalk.bold("Production") + chalk.dim(" — Real funds (USDC on Base), Conway Cloud server"));
+    console.log(chalk.white("  2) ") + chalk.bold("Testnet") + chalk.dim("    — Test funds (BSC Testnet), local machine, your Claude API key\n"));
+
+    while (true) {
+      const modeInput = await promptRequired("Enter 1 or 2");
+      if (modeInput === "1" || modeInput.toLowerCase() === "production") {
+        isTestnet = false;
+        break;
+      }
+      if (modeInput === "2" || modeInput.toLowerCase() === "testnet") {
+        isTestnet = true;
+        break;
+      }
+      console.log(chalk.yellow("  Please enter 1 or 2."));
+    }
+    console.log("");
+  }
+
+  if (isTestnet) {
+    return runTestnetFlow();
+  }
+  return runProductionFlow();
+}
+
+// ─── Production Flow ────────────────────────────────────────────
+
+async function runProductionFlow(): Promise<AutomatonConfig> {
   // ─── 1. Generate wallet ───────────────────────────────────────
   console.log(chalk.cyan("  [1/6] Generating identity (wallet)..."));
   const { account, isNew } = await getWallet();
@@ -195,9 +233,9 @@ export async function runSetupWizard(): Promise<AutomatonConfig> {
   return config;
 }
 
-export async function runTestnetSetupWizard(): Promise<AutomatonConfig> {
-  showBanner();
+// ─── Testnet Flow ───────────────────────────────────────────────
 
+async function runTestnetFlow(): Promise<AutomatonConfig> {
   console.log(chalk.yellow("  [TESTNET MODE] Setting up a testnet automaton.\n"));
   console.log(chalk.white("  No real money. No Conway Cloud. Just your Claude API key + BSC Testnet.\n"));
 
@@ -290,6 +328,8 @@ export async function runTestnetSetupWizard(): Promise<AutomatonConfig> {
 
   return config;
 }
+
+// ─── Funding Panels ─────────────────────────────────────────────
 
 function showTestnetFundingPanel(address: string): void {
   const short = `${address.slice(0, 6)}...${address.slice(-5)}`;

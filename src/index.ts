@@ -204,13 +204,8 @@ async function run(): Promise<void> {
   }
 
   if (!config) {
-    if (isTestnetFlag) {
-      const { runTestnetSetupWizard } = await import("./setup/wizard.js");
-      config = await runTestnetSetupWizard();
-    } else {
-      const { runSetupWizard } = await import("./setup/wizard.js");
-      config = await runSetupWizard();
-    }
+    const { runSetupWizard } = await import("./setup/wizard.js");
+    config = await runSetupWizard(isTestnetFlag);
   }
 
   const isTestnet = config.mode === "testnet";
