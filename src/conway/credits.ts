@@ -48,15 +48,15 @@ export function getSurvivalTier(creditsCents: number): SurvivalTier {
 /**
  * Check financial state in testnet mode.
  * Credits are derived from native BNB balance on BSC Testnet (no Conway API call).
- * 1 tBNB = $1 = 100 cents for testnet credit purposes.
+ * 1 tBNB = 10000 credit cents (inflated so small faucet amounts give meaningful credits).
  */
 export async function checkFinancialStateTestnet(
   walletAddress: Address,
   network: string = "eip155:97",
 ): Promise<FinancialState> {
   const nativeBalance = await getNativeBalance(walletAddress, network);
-  // Convert native balance to creditsCents (1 tBNB = $1 = 100 cents for testnet)
-  const creditsCents = Math.floor(nativeBalance * 100);
+  // Convert native balance to creditsCents (1 tBNB = 10000 cents for testnet)
+  const creditsCents = Math.floor(nativeBalance * 10000);
 
   return {
     creditsCents,
